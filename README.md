@@ -91,7 +91,7 @@ The collector does not ship any player data to a third party. It sends data to t
 
 Schema v2, tested against Paper/Purpur 1.21.11 on Java 21. The collector is usable now. Detector rules, thresholds, and calibration data are not part of this repository.
 
-The plugin is published as `forensic-telemetry` in `plugin.yml`. Main builds from this repo use version `0.2.0`. The `v0.1.0` release is the schema v1 collector. It still works, but it does not emit the v2 mechanic records.
+The plugin is published as `forensic-telemetry` in `plugin.yml`. The collector in this tree is version `0.2.0`. The `v0.1.0` release is the schema v1 collector. It still works, but it does not emit the v2 mechanic records.
 
 ## License
 
