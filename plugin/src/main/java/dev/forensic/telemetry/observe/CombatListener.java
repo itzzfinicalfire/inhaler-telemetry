@@ -13,6 +13,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.WindCharge;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -214,7 +215,12 @@ public final class CombatListener implements Listener {
             return;
         }
         int interactFlags = 0;
-        if (event.isCancelled()) {
+        // isCancelled() is deprecated on this event; the two use-results are the modern
+        // representation. Check all three so an older plugin that only calls setCancelled
+        // still lands in the cancelled bucket.
+        if (event.isCancelled()
+                || event.useInteractedBlock() == Event.Result.DENY
+                || event.useItemInHand() == Event.Result.DENY) {
             interactFlags |= ControlFlags.INTERACT_CANCELLED;
         }
         if (event.getHand() == EquipmentSlot.OFF_HAND) {
