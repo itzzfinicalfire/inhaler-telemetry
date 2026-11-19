@@ -201,8 +201,11 @@ Gap reasons, in ordinal order: `0` RING_OVERFLOW, `1` SEND_FAILURE, `2` SESSION_
 | ATTACK_CTX | 3 | attacker was sprinting |
 | ATTACK_CTX | 4 | attacker was on the ground |
 | ATTACK_CTX | 5 | attacker was sneaking |
+| ATTACK_CTX | 6 | damage cause was a vanilla sweep |
 
 Victim category in `ATTACK_CTX`: `0` other entity, `1` player, `2` end crystal.
+
+`DAMAGE.cause` is `EntityDamageEvent.DamageCause.ordinal()` from Paper 1.21.11. The four values this build uses are `ENTITY_ATTACK=3`, `ENTITY_SWEEP_ATTACK=4`, `FALL=7`, `ENTITY_EXPLOSION=14`. A test pins those ordinals so an API reorder fails the build.
 
 Cancelled events are recorded on purpose. A protection plugin blocking a crystal placement still tells you the client tried to place one.
 

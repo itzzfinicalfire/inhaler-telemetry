@@ -29,6 +29,8 @@ public final class ControlFlags {
     public static final int ATTACK_ATTACKER_GROUND = 1 << 4;
     /** ATTACK_CTX flag: the attacker was sneaking at the hit. */
     public static final int ATTACK_ATTACKER_SNEAK = 1 << 5;
+    /** ATTACK_CTX flag: the damage cause was a vanilla sweep, so multiple victims are expected. */
+    public static final int ATTACK_SWEEP = 1 << 6;
 
     private ControlFlags() {}
 }

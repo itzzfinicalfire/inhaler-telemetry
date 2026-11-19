@@ -21,6 +21,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.event.entity.EntityResurrectEvent;
@@ -133,6 +134,10 @@ public final class CombatListener implements Listener {
                 }
                 if (attacker.isSneaking()) {
                     attackFlags |= ControlFlags.ATTACK_ATTACKER_SNEAK;
+                }
+                if (event.getCause()
+                        == EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK) {
+                    attackFlags |= ControlFlags.ATTACK_SWEEP;
                 }
                 int heldCategory = ItemCategory.of(attacker.getInventory().getItemInMainHand());
                 ring.offerAttackCtx(tick, attacker.getEntityId(), attacker.getFallDistance(),

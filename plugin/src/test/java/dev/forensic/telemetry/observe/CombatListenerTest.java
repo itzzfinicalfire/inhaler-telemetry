@@ -152,6 +152,18 @@ class CombatListenerTest {
     }
 
     @Test
+    @DisplayName("sweep damage marks ATTACK_CTX so multi-victim ticks can be separated")
+    void sweepFlag() {
+        PlayerMock attacker = server.addPlayer("Sweeper");
+        PlayerMock victim = server.addPlayer("Victim");
+        server.getPluginManager().callEvent(new EntityDamageByEntityEvent(
+                attacker, victim, EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK, 3.0));
+        ByteBuffer ctx = first(drainRecords(), ControlKind.ATTACK_CTX);
+        assertNotNull(ctx);
+        assertTrue((ctx.get(21) & ControlFlags.ATTACK_SWEEP) != 0);
+    }
+
+    @Test
     @DisplayName("mob damage to a player emits ATTACK+DAMAGE with damager -1, no ATTACK_CTX")
     void mobDamage() {
         PlayerMock victim = server.addPlayer("Victim");

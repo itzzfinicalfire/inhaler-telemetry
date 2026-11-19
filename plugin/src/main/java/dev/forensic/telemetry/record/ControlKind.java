@@ -65,6 +65,8 @@ package dev.forensic.telemetry.record;
  *       attackCooldownBits(float)@16, heldCategory@20(uint8), flags@21(uint8, see
  *       {@link ControlFlags}), victimCategory@22(uint8), reserved@23. Emitted next to the
  *       ATTACK whenever the attacker is a player and capture.attack-context is on.
+ *       Flag bit 6 marks a vanilla sweep, so multi-victim ticks can be separated from a
+ *       multi-target attack.
  * </ul>
  *
  * <p>Unknown markers are skipped by readers, never thrown: the slot size is fixed, so a future
