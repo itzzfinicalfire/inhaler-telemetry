@@ -1,0 +1,53 @@
+# forensic-telemetry — example plugin configuration
+#
+# REPORT-ONLY. No key in this file can make the plugin punish, move, damage, or
+# otherwise act on a player. Keys that would imply such behaviour are rejected
+# at startup; see TelemetryConfig.FORBIDDEN_KEYS.
+#
+# Copy this file to plugins/ForensicTelemetry/config.yml (capital F and T),
+# replace every CHANGE_ME value, then set telemetry.enabled: true.
+
+telemetry:
+  enabled: false
+
+endpoint:
+  # Direct panel allocation. Stable across panel restarts; no quick tunnel.
+  url: "http://YOUR-PANEL-HOST:PORT/v1/telemetry"
+
+server:
+  # Must match a row in the cloud servers table (INGEST_SERVERS), UUID format.
+  id: "00000000-0000-0000-0000-000000000000"
+  key-id: "k1"
+  # Same value as INGEST_KEY_<server>_<keyId> in the cloud .env.
+  # Lives only in this file and process memory; never logged, never uploaded.
+  key-secret: "CHANGE_ME_AT_LEAST_16_RANDOM_CHARACTERS"
+
+buffer:
+  bytes: 67108864
+  chunk-bytes: 65536
+
+encoder:
+  resync-interval-ticks: 40
+
+flush:
+  interval-ms: 2000
+  max-bytes: 65536
+  max-batch-chunks: 16
+
+upload:
+  max-inflight: 2
+  backoff-initial-ms: 1000
+  backoff-max-ms: 60000
+  timestamp-skew-tolerance-ms: 30000
+
+schema:
+  record-version: 1
+  envelope-version: 1
+
+console-report:
+  # Read-only shadow measurements printed to the server console. This NEVER
+  # kicks, bans, damages, or moves anyone: every line is labelled SHADOW_ONLY.
+  enabled: false
+  interval-seconds: 30
+  # Must match REPORT_TOKEN on the cloud. Read-only: it cannot export or write.
+  token: "CHANGE_ME_AT_LEAST_16_RANDOM_CHARACTERS"

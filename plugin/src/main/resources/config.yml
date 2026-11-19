@@ -1,0 +1,64 @@
+# forensic-telemetry — plugin configuration
+#
+# REPORT-ONLY. No key in this file can make the plugin punish, move, damage, or
+# otherwise act on a player. Keys that would imply such behaviour are rejected
+# at startup; see TelemetryConfig.FORBIDDEN_KEYS.
+
+telemetry:
+  # Master switch. Off by default so a fresh install observes nothing until the
+  # endpoint and key are configured.
+  enabled: false
+
+endpoint:
+  url: "https://ingest.invalid/v1/telemetry"
+
+server:
+  # Must match a row in the servers table, UUID format.
+  id: "00000000-0000-0000-0000-000000000000"
+  # Identifies which secret signed an envelope; allows key rotation with overlap.
+  key-id: "unset"
+  # HMAC secret for envelope signatures. Set a long random value when enabling.
+  # Lives only in this file and process memory; never logged, never uploaded.
+  # key-secret: "CHANGE-ME-TO-AT-LEAST-16-RANDOM-CHARACTERS"
+
+buffer:
+  # Off-heap direct ByteBuffer ring. 64 MiB = 1024 chunks of 64 KiB.
+  # Must be a multiple of chunk-bytes and hold >= 16 chunks.
+  bytes: 67108864
+  chunk-bytes: 65536
+
+encoder:
+  # Absolute position/rotation resync every N ticks. 40 ticks = 2.0 s, which
+  # bounds delta-quantization drift to ~0.005 blocks (§D.1). Lower = less drift,
+  # more bytes. Never set above 400.
+  resync-interval-ticks: 40
+
+flush:
+  # A chunk is sealed when either threshold trips, whichever comes first.
+  interval-ms: 2000
+  max-bytes: 65536
+  max-batch-chunks: 16
+
+upload:
+  # Concurrent in-flight requests. Kept at 1..4; the ring absorbs the rest.
+  max-inflight: 2
+  backoff-initial-ms: 1000
+  backoff-max-ms: 60000
+  # Ingest rejects envelopes outside +/- this window. Retries always re-sign with
+  # a fresh timestamp, so a tight window costs nothing.
+  timestamp-skew-tolerance-ms: 30000
+
+schema:
+  record-version: 1
+  envelope-version: 1
+
+console-report:
+  # Read-only shadow measurements printed to the server console by polling the
+  # cloud. This NEVER kicks, bans, damages, or moves anyone: it prints lines
+  # labelled SHADOW_ONLY. Off until a report token is configured.
+  enabled: false
+  interval-seconds: 30
+  # Optional. Derived from endpoint.url by replacing /v1/telemetry with /v1/report.
+  # url: "https://ingest.example.com/v1/report"
+  # Must match REPORT_TOKEN on the cloud. Read-only: it cannot export or write.
+  # token: "CHANGE-ME-TO-AT-LEAST-16-RANDOM-CHARACTERS"

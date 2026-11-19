@@ -1,0 +1,13 @@
+﻿name: ForensicTelemetry
+version: 0.1.0
+main: dev.forensic.telemetry.TelemetryPlugin
+api-version: '1.21'
+description: Report-only forensic PvP telemetry collection.
+author: forensic
+website: file:docs/ARCHITECTURE.md
+
+# No lifecycle events other than defaults: the plugin must not be able to
+# influence server state. onEnable installs a read-only observer; onDisable
+# flushes and stops. There is no code path from this plugin to any mutating
+# Bukkit API.
+folia-supported: false
