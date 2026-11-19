@@ -41,6 +41,11 @@ import java.nio.ByteBuffer;
  * <p>Evicted or dropped STATE ticks go to {@link GapTracker} as tick ranges. Evicted/dropped
  * CONTROL records increment {@link #droppedControl()}; ticks are meaningless for control loss
  * since control has no tick-series continuity to break.
+ *
+ * <p>Intra-tick ordering: every control offer stamps a sequence byte from a per-tick counter.
+ * The writer is the main thread, so this sequence is event order. Offers that are rejected for
+ * pressure do not consume a sequence number; the gap in the sequence is itself honest, but
+ * readers must not assume consecutive values.
  */
 public final class TelemetryRing {
 
@@ -57,6 +62,10 @@ public final class TelemetryRing {
     private volatile long offeredControl;
     private volatile long droppedState;
     private volatile long droppedControl;
+
+    /** Writer-thread only. No synchronisation: only the main thread offers. */
+    private int lastSequenceTick = Integer.MIN_VALUE;
+    private int tickSequence;
 
     public TelemetryRing(int bufferBytes, GapTracker gaps) {
         if (bufferBytes % 32 != 0) {
@@ -118,10 +127,10 @@ public final class TelemetryRing {
     }
 
     /**
-     * Offers a state record. All fields travel as parameters (never a capturing lambda) so
-     * the hot path allocates nothing: the encoder runs inside, at the slot, exactly once on
-     * success and zero times on drop. The tick ALSO feeds gap accounting when dropped: a loss
-     * record without a tick is a rumor, not data.
+     * Offers a state record. All fields travel as parameters (never a capturing lambda) so the
+     * hot path allocates nothing: the encoder runs inside, at the slot, exactly once on success
+     * and zero times on drop. The tick ALSO feeds gap accounting when dropped: a loss record
+     * without a tick is a rumor, not data.
      *
      * @return true if the record landed, false if it was dropped (counted)
      */
@@ -145,66 +154,234 @@ public final class TelemetryRing {
     }
 
     public boolean offerAttack(int tick, int attackerId, int victimId, float damage) {
-        return offerControl(false, tick, (buf, off) ->
-                RecordEncoder.encodeAttack(buf, off, tick, attackerId, victimId, damage));
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeAttack(buffer, off, tick, nextSequence(tick),
+                attackerId, victimId, damage);
+        commitControl();
+        return true;
     }
 
     public boolean offerDamage(
             int tick, int victimId, float damage, int causeOrdinal, int damagerId) {
-        return offerControl(false, tick, (buf, off) ->
-                RecordEncoder.encodeDamage(buf, off, tick, victimId, damage, causeOrdinal,
-                        damagerId));
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeDamage(buffer, off, tick, nextSequence(tick),
+                victimId, damage, causeOrdinal, damagerId);
+        commitControl();
+        return true;
     }
 
     public boolean offerDeath(int tick, int victimId) {
-        return offerControl(true, tick, (buf, off) ->
-                RecordEncoder.encodeDeath(buf, off, tick, victimId));
+        int off = beginControl(true);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeDeath(buffer, off, tick, nextSequence(tick), victimId);
+        commitControl();
+        return true;
     }
 
     public boolean offerSessionStart(int tick) {
-        return offerControl(true, tick, (buf, off) ->
-                RecordEncoder.encodeSessionStart(buf, off, tick));
+        int off = beginControl(true);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeSessionStart(buffer, off, tick, nextSequence(tick));
+        commitControl();
+        return true;
     }
 
     public boolean offerSessionEnd(int tick) {
-        return offerControl(true, tick, (buf, off) ->
-                RecordEncoder.encodeSessionEnd(buf, off, tick));
+        int off = beginControl(true);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeSessionEnd(buffer, off, tick, nextSequence(tick));
+        commitControl();
+        return true;
     }
 
     public boolean offerGap(int sealTick, int fromTick, int toTick, int reason) {
-        return offerControl(true, sealTick, (buf, off) ->
-                RecordEncoder.encodeGap(buf, off, sealTick, fromTick, toTick, reason));
+        int off = beginControl(true);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeGap(buffer, off, sealTick, nextSequence(sealTick),
+                fromTick, toTick, reason);
+        commitControl();
+        return true;
     }
 
     public boolean offerInterest(int tick, int entityA, int entityB, int trigger) {
-        return offerControl(false, tick, (buf, off) ->
-                RecordEncoder.encodeInterest(buf, off, tick, entityA, entityB, trigger));
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeInterest(buffer, off, tick, nextSequence(tick),
+                entityA, entityB, trigger);
+        commitControl();
+        return true;
     }
 
     public boolean offerResync(int tick, int configHash) {
-        return offerControl(false, tick, (buf, off) ->
-                RecordEncoder.encodeResync(buf, off, tick, configHash));
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeResync(buffer, off, tick, nextSequence(tick), configHash);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerHeldSlot(int tick, int entityId, int fromSlot, int toSlot,
+            int previousCategory, int newCategory) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeHeldSlot(buffer, off, tick, nextSequence(tick),
+                entityId, fromSlot, toSlot, previousCategory, newCategory);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerPlace(int tick, int entityId, int blockX, int blockY, int blockZ,
+            int blockCategory, int flags) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodePlace(buffer, off, tick, nextSequence(tick),
+                entityId, blockX, blockY, blockZ, blockCategory, flags);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerInteract(int tick, int entityId, int blockX, int blockY, int blockZ,
+            int interactKind, int itemCategory, int flags) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeInteract(buffer, off, tick, nextSequence(tick),
+                entityId, blockX, blockY, blockZ, interactKind, itemCategory, flags);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerSwing(int tick, int entityId, int hand, int flags) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeSwing(buffer, off, tick, nextSequence(tick),
+                entityId, hand, flags);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerCrystalSpawn(int tick, int crystalEntityId, float x, float y, float z,
+            int ownerEntityId) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeCrystalSpawn(buffer, off, tick, nextSequence(tick),
+                crystalEntityId, x, y, z, ownerEntityId);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerCrystalBreak(int tick, int crystalEntityId, int breakerEntityId,
+            float x, float y, float z) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeCrystalBreak(buffer, off, tick, nextSequence(tick),
+                crystalEntityId, breakerEntityId, x, y, z);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerAnchorExplode(int tick, float x, float y, float z, int triggerEntityId) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeAnchorExplode(buffer, off, tick, nextSequence(tick),
+                x, y, z, triggerEntityId);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerTotemPop(int tick, int entityId) {
+        int off = beginControl(true);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeTotemPop(buffer, off, tick, nextSequence(tick), entityId);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerWindCharge(int tick, int shooterEntityId, int projectileEntityId) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeWindCharge(buffer, off, tick, nextSequence(tick),
+                shooterEntityId, projectileEntityId);
+        commitControl();
+        return true;
+    }
+
+    public boolean offerAttackCtx(int tick, int attackerEntityId, float fallDistance,
+            float attackCooldown, int heldCategory, int flags, int victimCategory) {
+        int off = beginControl(false);
+        if (off < 0) {
+            return false;
+        }
+        RecordEncoder.encodeAttackCtx(buffer, off, tick, nextSequence(tick),
+                attackerEntityId, fallDistance, attackCooldown, heldCategory, flags,
+                victimCategory);
+        commitControl();
+        return true;
     }
 
     /**
-     * Control offer core. Lambdas here are cold-path only (events, resync, gaps: Hz-scale,
-     * never the 20 Hz snapshot loop), so capture allocation is irrelevant. The snapshot
-     * loop uses {@link #offerState}, which takes plain parameters.
+     * Reserves the next control slot, applying the documented pressure policy. Returns the
+     * buffer offset, or -1 when the incoming record was dropped.
      */
-    private boolean offerControl(boolean critical, int tick, SlotWriter writer) {
+    private int beginControl(boolean critical) {
         offeredControl++;
         if (size() >= slotCount) {
             // CRITICAL tail yields only to CRITICAL incoming.
             if (isControlSlot(readSeq) && !critical) {
                 droppedControl++;
-                return false;
+                return -1;
             }
             evictTail();
         }
-        long seq = writeSeq;
-        writer.writeAt(buffer, offsetOf(seq));
-        writeSeq = seq + 1;
-        return true;
+        return offsetOf(writeSeq);
+    }
+
+    private void commitControl() {
+        writeSeq = writeSeq + 1;
+    }
+
+    /** Per-tick writer order. Wraps at 256; readers treat order as monotonic modulo wrap. */
+    private int nextSequence(int tick) {
+        if (tick != lastSequenceTick) {
+            lastSequenceTick = tick;
+            tickSequence = 0;
+        }
+        return tickSequence++ & 0xFF;
     }
 
     private void evictTail() {
@@ -237,16 +414,5 @@ public final class TelemetryRing {
             drained++;
         }
         return drained;
-    }
-
-    /**
-     * Functional interface for zero-alloc slot encoding. Runs at most once per offer, on the
-     * writer thread. Hot paths must hoist values into locals before the lambda: capturing
-     * lambdas allocate per offer, so capture primitives and effectively-final locals only,
-     * never objects that outlive the call.
-     */
-    @FunctionalInterface
-    public interface SlotWriter {
-        void writeAt(ByteBuffer buffer, int bufferOffset);
     }
 }

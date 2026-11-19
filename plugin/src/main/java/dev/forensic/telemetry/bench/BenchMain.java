@@ -39,12 +39,14 @@ public final class BenchMain {
         System.out.printf("%-28s %12.1f%n", "encodeState", benchEncode());
         System.out.printf("%-28s %12.1f%n", "ring offer+poll", benchRing());
         System.out.printf("%-28s %12.1f%n", "observer tick/player", benchObserver());
+        System.out.printf("%-28s %12.1f%n", "combat tick (40 players)", benchCombatTick(40, 20_000));
     }
 
     private static void warmup() {
         benchEncode();
         benchRing();
         benchObserver();
+        benchCombatTick(40, 2_000);
     }
 
     static double benchEncode() {
@@ -110,6 +112,37 @@ public final class BenchMain {
             ring.drainTo(drain, 4096);
         }
         return (double) (System.nanoTime() - start) / (ticks * 100);
+    }
+
+    /**
+     * One simulated tick with {@code players} tracked players, a quarter of them in a crystal
+     * fight (spawn, break, swap, attack, context, damage). Returns ns per tick for the whole
+     * player set. This is the number that matters for the main-thread budget.
+     */
+    static double benchCombatTick(int players, int ticks) {
+        TelemetryRing ring = new TelemetryRing(16384 * 32, new GapTracker());
+        ByteBuffer drain = ByteBuffer.allocate(16384 * 32);
+        long start = System.nanoTime();
+        for (int t = 1; t <= ticks; t++) {
+            for (int p = 0; p < players; p++) {
+                int entity = 100 + p;
+                ring.offerState(t, entity, t, 64, 0, 0, 0, 1, 20);
+                if (p % 4 == 0) {
+                    int crystal = 10_000 + p;
+                    ring.offerCrystalSpawn(t, crystal, t, 64, 0, entity);
+                    ring.offerCrystalBreak(t, crystal, entity, t, 64, 0);
+                    ring.offerHeldSlot(t, entity, 0, 4, 2, 4);
+                    ring.offerAttack(t, entity, entity + 1, 6f);
+                    ring.offerDamage(t, entity + 1, 6f, 3, entity);
+                    ring.offerAttackCtx(t, entity, 2.5f, 0.9f, 4, 2, 1);
+                }
+            }
+            if (ring.size() > 8192) {
+                drain.clear();
+                ring.drainTo(drain, 8192);
+            }
+        }
+        return (double) (System.nanoTime() - start) / ticks;
     }
 
     /** Allocated bytes on the current thread across {@code work} (warmed up by caller). */

@@ -1,7 +1,7 @@
 package dev.forensic.telemetry.record;
 
 /**
- * Authoritative 32-byte record layout, schema v1.
+ * Authoritative 32-byte record layout, schema v2.
  *
  * <p>Every slot in the ring is exactly {@link dev.forensic.telemetry.TelemetryConfig#RECORD_BYTES}
  * bytes. Fixed size is what makes the ring branchless math (index {@code &} mask) instead of a
@@ -24,23 +24,26 @@ package dev.forensic.telemetry.record;
  *
  * <p>Positions are full-precision floats, never quantized. The transport does not get to decide
  * what precision the evidence needs: quantization is an analysis decision (and a forbidden one
- * for detection reasoning), so the wire carries every bit the server had. The 40-tick
- * "resync" config does not mean delta state here; it drives {@link ControlKind#RESYNC}
- * continuity checkpoints.
+ * for detection reasoning), so the wire carries every bit the server had.
  *
  * <p>Health is deliberately absent. Per-tick health would cost 4 bytes on every record for a
  * value that changes rarely; health transitions arrive as {@link ControlKind#DAMAGE} and {@link
- * ControlKind#DEATH} control records, which is also where the cause lives. Kill attribution
- * needs cause + victim + tick, never a health time series.
+ * ControlKind#DEATH} control records, which is also where the cause lives.
  *
  * <h2>Control record (events, boundaries, gaps)</h2>
  *
  * <pre>
  *  0     kind        0x80-0xFF marker (see {@link ControlKind})
- *  1- 3  reserved    0
+ *  1     sequence    uint8, intra-tick writer order; 0 when written by a v1 encoder
+ *  2- 3  reserved    0
  *  4- 7  tick        int32 BE
  *  8-31  kind-specific payload (see ControlKind javadoc per kind)
  * </pre>
+ *
+ * <p>The sequence byte exists because combat mechanics are ordered within a tick: place a
+ * crystal, hit it, swap to a mace all in one server tick. Sorting same-tick events by content
+ * (the pre-v2 timeline behaviour) erases that order. v1 records have zero in this byte, which a
+ * reader must interpret as "order unknown", not "first".
  *
  * <h2>Kind discrimination</h2>
  *
@@ -55,8 +58,8 @@ public final class RecordLayout {
 
     public static final int RECORD_BYTES = 32;
 
-    /** Schema version of this layout. Bumped only by an incompatible layout change. */
-    public static final int SCHEMA_VERSION = 1;
+    /** Schema version of this layout. v2 adds intra-tick sequence and combat-mechanic kinds. */
+    public static final int SCHEMA_VERSION = 2;
 
     // State record offsets.
     public static final int OFF_TICK = 0;
@@ -81,6 +84,7 @@ public final class RecordLayout {
 
     // Control record offsets.
     public static final int OFF_KIND = 0;
+    public static final int OFF_CTRL_SEQ = 1;
     public static final int OFF_CTRL_TICK = 4;
 
     private RecordLayout() {}
