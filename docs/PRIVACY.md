@@ -6,19 +6,23 @@ The collector watches players. That makes it a privacy-sensitive component, even
 
 Each tracked player produces a state record every tick. The record contains the player UUID, the session entity ID, the tick, position, yaw, pitch, movement flags, and ping.
 
-Combat events add attack, damage, death, and interest records. The envelope carries the server UUID, the session epoch, the tick range, the player list, and any gap ranges.
+Combat events add attack, damage, death, and interest records. The v2 mechanic records add hotbar slot changes (with an item category on each side), placements of obsidian, respawn anchors and glowstone, anchor charge and crystal placement attempts (including cancelled attempts), arm swings, crystal spawn/break, anchor explosions, totem pops, wind charge launches, and attack context (fall distance, attack cooldown, held category, victim category, movement flags).
+
+The envelope carries the server UUID, the session epoch, the tick range, the player list, and any gap ranges.
 
 ## What does not leave the server
 
 - chat and private messages
 - commands and command output
-- inventory contents
+- inventory contents (only the category of a held or placed item, never the stack, name, enchantments or count)
 - IP addresses
 - account credentials
 - client brand or mod list
 - anything the server does not already hold in memory
 
 The plugin does not read files outside its own config, does not write telemetry to disk, and does not call a third-party service. It sends to the endpoint in `endpoint.url`.
+
+Item categories are intentionally coarse. The collector maps a held or placed material to one of eleven values (none, other, sword, axe, mace, end crystal, obsidian, respawn anchor, glowstone, totem, wind charge). It never records a display name, lore, enchantment, durability, or stack size.
 
 ## Where the data goes
 

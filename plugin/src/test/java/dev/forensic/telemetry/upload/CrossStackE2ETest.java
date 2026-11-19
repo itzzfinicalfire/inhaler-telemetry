@@ -1,7 +1,7 @@
 package dev.forensic.telemetry.upload;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import dev.forensic.telemetry.TelemetryConfig;
 import dev.forensic.telemetry.record.ControlKind;
@@ -32,10 +32,8 @@ class CrossStackE2ETest {
     void envelopeAcceptedEndToEnd() throws Exception {
         String url = System.getenv("CLOUD_E2E_URL");
         String secret = System.getenv("CLOUD_E2E_SECRET");
-        if (url == null || secret == null) {
-            System.out.println("SKIP CrossStackE2ETest: set CLOUD_E2E_URL + CLOUD_E2E_SECRET");
-            return;
-        }
+        assumeTrue(url != null && secret != null,
+                "set CLOUD_E2E_URL + CLOUD_E2E_SECRET to run the cross-stack test");
 
         Map<String, String> raw = new java.util.LinkedHashMap<>();
         raw.put("server.id", "11111111-1111-1111-1111-111111111111");
@@ -57,6 +55,15 @@ class CrossStackE2ETest {
         }
         // One genuine loss inside the stream: the gap record travels in-band.
         ring.offerGap(5005, 4998, 4999, ControlKind.GAP_RING_OVERFLOW);
+        // v2 combat-mechanic records ride the same envelope path.
+        ring.offerHeldSlot(5005, playerEntity, 0, 1, 2, 4);
+        ring.offerCrystalSpawn(5005, 77, 10.5f, 64.0f, -3.25f, playerEntity);
+        ring.offerAttackCtx(5005, playerEntity, 2.5f, 0.875f, 4, 2, 2);
+        ring.offerCrystalBreak(5005, 77, playerEntity, 10.5f, 64.0f, -3.25f);
+        ring.offerInteract(5005, playerEntity, 10, 64, -4, 0, 8, 0);
+        ring.offerAnchorExplode(5005, 10.5f, 64.5f, -2.5f, -1);
+        ring.offerTotemPop(5005, playerEntity);
+        ring.offerWindCharge(5005, playerEntity, 91);
 
         Map<Integer, UUID> entities = Map.of(playerEntity,
                 UUID.fromString("33333333-3333-3333-3333-333333333333"));

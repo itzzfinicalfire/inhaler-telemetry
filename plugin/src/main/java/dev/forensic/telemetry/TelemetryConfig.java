@@ -41,6 +41,12 @@ public record TelemetryConfig(
         int consoleReportIntervalSeconds,
         String consoleReportUrl,
         String consoleReportToken,
+        boolean captureCrystal,
+        boolean captureAnchor,
+        boolean captureSlotSwap,
+        boolean captureInteract,
+        boolean captureSwing,
+        boolean captureAttackContext,
         Map<String, String> raw) {
 
     /** Per-tick record size: 32 B (§D.1). Asserted against by the encoder. */
@@ -101,14 +107,31 @@ public record TelemetryConfig(
                 i(v, "upload.backoff-initial-ms", 1000),
                 i(v, "upload.backoff-max-ms", 60000),
                 i(v, "upload.timestamp-skew-tolerance-ms", 30000),
-                i(v, "schema.record-version", 1),
-                i(v, "schema.envelope-version", 1),
+                i(v, "schema.record-version", 2),
+                i(v, "schema.envelope-version", 2),
                 bool(v, "telemetry.enabled", false),
                 bool(v, "console-report.enabled", false),
                 i(v, "console-report.interval-seconds", 30),
                 str(v, "console-report.url", reportUrlFrom(endpointUrl)),
                 str(v, "console-report.token", ""),
+                bool(v, "capture.crystal", true),
+                bool(v, "capture.anchor", true),
+                bool(v, "capture.slot-swap", true),
+                bool(v, "capture.interact", true),
+                bool(v, "capture.swing", true),
+                bool(v, "capture.attack-context", true),
                 Map.copyOf(v));
+    }
+
+    /** Per-family listener toggles, resolved once at enable. */
+    public dev.forensic.telemetry.observe.CaptureFlags captureFlags() {
+        return new dev.forensic.telemetry.observe.CaptureFlags(
+                captureCrystal,
+                captureAnchor,
+                captureSlotSwap,
+                captureInteract,
+                captureSwing,
+                captureAttackContext);
     }
 
     /**

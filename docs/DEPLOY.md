@@ -45,7 +45,7 @@ The server UUID must match the row on the ingest side. The `key-id` names the se
 Start the server. The log should show:
 
 ```text
-forensic-telemetry enabled: session=..., buffer=67108864 bytes, recordSchema=v1, envelopeSchema=v1
+forensic-telemetry enabled: session=..., buffer=67108864 bytes, recordSchema=v2, envelopeSchema=v2
 ```
 
 Join the server, walk around, hit something. Uploads begin after the first flush interval, which is two seconds by default.
@@ -63,6 +63,24 @@ The defaults fit most Paper servers:
 A busy 100-player server writes more state than a survival server with ten players. If the ring overflows, the log and the envelope gap records say so. Increase `buffer.bytes` before increasing `upload.max-inflight`. The ring is the shock absorber, not the network.
 
 `upload.max-inflight` is capped at 4. Values above that are rejected at startup. `flush.interval-ms` below 100 is also rejected.
+
+## Capture families
+
+`capture.*` turns one mechanic family on or off:
+
+```yaml
+capture:
+  crystal: true
+  anchor: true
+  slot-swap: true
+  interact: true
+  swing: true
+  attack-context: true
+```
+
+Turning a family off stops those records only. State, attacks, damage, deaths, and gap accounting keep running, so a disabled family cannot make a session look quieter than it was. `attack-context` covers the mace family: fall distance, attack cooldown, held category, victim category, and wind charge launches.
+
+Schema v2 is the default. The plugin still ingests v1 segments, and a v2 reader skips unknown control markers instead of failing the segment.
 
 ## Secrets and rotation
 

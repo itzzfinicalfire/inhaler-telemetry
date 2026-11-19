@@ -63,7 +63,8 @@ public final class TelemetryPlugin extends JavaPlugin {
         PaperPlayerSource source = new PaperPlayerSource();
         ObserverTask observer =
                 new ObserverTask(config, ring, tracked, source, Bukkit::getCurrentTick);
-        getServer().getPluginManager().registerEvents(new CombatListener(ring, tracked), this);
+        getServer().getPluginManager().registerEvents(
+                new CombatListener(ring, tracked, config.captureFlags()), this);
         this.observerTaskId =
                 getServer().getScheduler().runTaskTimer(this, observer, 1L, 1L).getTaskId();
 

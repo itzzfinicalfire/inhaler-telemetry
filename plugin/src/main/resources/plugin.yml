@@ -1,5 +1,5 @@
 ﻿name: ForensicTelemetry
-version: 0.1.0
+version: 0.2.0
 main: dev.forensic.telemetry.TelemetryPlugin
 api-version: '1.21'
 description: Report-only forensic PvP telemetry collection.

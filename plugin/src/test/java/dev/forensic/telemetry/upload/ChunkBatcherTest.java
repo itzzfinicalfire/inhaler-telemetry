@@ -101,7 +101,7 @@ class ChunkBatcherTest {
                 "\"to_tick\":95", "\"reason\":\"RING_OVERFLOW\"",
                 "\"segment_key\":\"seg/server-1/",
                 "\"player_id\":\"33333333-3333-3333-3333-333333333333\",\"name\":null,\"entity_id\":7",
-                "\"schema_version\":1"}) {
+                "\"schema_version\":2"}) {
             assertTrue(s.contains(key), "missing " + key + " in " + s);
         }
     }
@@ -133,5 +133,36 @@ class ChunkBatcherTest {
         assertEquals("INTERNAL_ERROR", ChunkBatcher.cloudGapReason(99));
         assertEquals("SEND_FAILURE",
                 ChunkBatcher.cloudGapReason(ControlKind.GAP_SEND_FAILURE));
+    }
+
+    @Test
+    @DisplayName("unknown control markers are skipped and counted, never thrown")
+    void unknownControlMarkerSkipped() {
+        ByteBuffer chunk = ByteBuffer.allocate(3 * 32);
+        RecordEncoder.encodeState(chunk, 0, 5, 7, 0, 0, 0, 0, 0, 0, 0);
+        // A future kind: marker 0xFE, tick at the v2 control offset, arbitrary payload.
+        chunk.put(32, (byte) 0xFE);
+        chunk.putInt(32 + 4, 6);
+        RecordEncoder.encodeAttack(chunk, 64, 7, 0, 7, 8, 5f);
+
+        ChunkBatcher.DrainedChunk drained = ChunkBatcher.scan(
+                chunk, 0, 3 * 32, 3, "server-1", EPOCH,
+                id -> id == 7 ? PLAYER_A : null);
+        assertEquals(3, drained.recordCount());
+        assertEquals(1, drained.unknownControlRecords());
+        assertEquals(5, drained.tickMin());
+        assertEquals(7, drained.tickMax());
+        assertTrue(drained.playerIds().contains(PLAYER_A));
+    }
+
+    @Test
+    @DisplayName("v2 mechanic kinds are recognised, not counted as unknown")
+    void v2KindsRecognised() {
+        ByteBuffer chunk = ByteBuffer.allocate(2 * 32);
+        RecordEncoder.encodeCrystalSpawn(chunk, 0, 5, 0, 77, 1f, 2f, 3f, 7);
+        RecordEncoder.encodeAttackCtx(chunk, 32, 5, 1, 7, 2.5f, 0.9f, 4, 2, 1);
+        ChunkBatcher.DrainedChunk drained = ChunkBatcher.scan(
+                chunk, 0, 2 * 32, 2, "server-1", EPOCH, id -> null);
+        assertEquals(0, drained.unknownControlRecords());
     }
 }

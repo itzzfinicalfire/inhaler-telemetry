@@ -381,7 +381,7 @@ class AsyncUploaderTest {
         String canonical =
                 "PUT\n" + path + "\n11111111-1111-1111-1111-111111111111\nk1\n"
                         + timestamp + "\n" + nonce + "\n"
-                        + "22222222-2222-2222-2222-222222222222\n1\n"
+                        + "22222222-2222-2222-2222-222222222222\n2\n"
                         + put.body().length + "\n" + digest;
         String expected =
                 EnvelopeSigner.hmacHex(

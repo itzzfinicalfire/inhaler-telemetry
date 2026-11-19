@@ -13,7 +13,21 @@ At 20 Hz, for each tracked player:
 - ping
 - attack, damage, death, and interest events
 
-Each tick is a fixed 32-byte record. The plugin keeps a 64 MiB off-heap ring, seals 64 KiB chunks every two seconds, and writes an absolute position and rotation resync every 40 ticks. Uploads are signed with HMAC-SHA256. If the endpoint is down, the ring absorbs the backlog and the gap tracker records what was lost. The server keeps running either way.
+Combat mechanics get their own control records, because a crystal or anchor fight is decided in the order things happen inside a tick:
+
+- hotbar slot changes, including the item category on both sides
+- obsidian, respawn anchor, and glowstone placements
+- anchor charge attempts and crystal placement attempts, cancelled ones included
+- arm swings
+- end crystal spawn and break, with the owner and breaker
+- respawn anchor explosions
+- totem pops
+- wind charge launches
+- attack context: fall distance, attack cooldown, held category, victim category, and movement flags
+
+Each tick is a fixed 32-byte record. Control records carry a one-byte sequence number, stamped in ring write order, so place, break, and swap inside one tick stay in the order the server fired them. A v1 stream has zero there, which means "order unknown", not "first".
+
+The plugin keeps a 64 MiB off-heap ring, seals 64 KiB chunks every two seconds, and writes an absolute position and rotation resync every 40 ticks. Uploads are signed with HMAC-SHA256. If the endpoint is down, the ring absorbs the backlog and the gap tracker records what was lost. The server keeps running either way.
 
 ## What it never does
 
@@ -38,7 +52,7 @@ That is enforced in the build, not just in a policy note. A test walks the compi
 A healthy start logs:
 
 ```text
-forensic-telemetry enabled: session=..., buffer=67108864 bytes, recordSchema=v1, envelopeSchema=v1
+forensic-telemetry enabled: session=..., buffer=67108864 bytes, recordSchema=v2, envelopeSchema=v2
 ```
 
 If you see `telemetry.enabled=false: observing nothing`, the config is missing or sitting in the wrong folder. The plugin writes a default config when it cannot find yours, so check the path before editing anything else.
@@ -61,12 +75,13 @@ The example config is the source of truth. A few values cause most support quest
 - `encoder.resync-interval-ticks` is capped at 400. Lower values bound drift and cost bandwidth.
 - `upload.max-inflight` is capped at 4. The ring handles bursts.
 - `flush.interval-ms` below 100 is rejected.
+- `capture.*` toggles stop one mechanic family from being recorded. They never stop state, attacks, damage, deaths, or gaps, so turning a family off cannot make a session look quieter than it was.
 
 Secrets live in the config file and process memory. They are never logged and never added to an envelope.
 
 ## Data and privacy
 
-The envelope carries the server UUID, session epoch, player UUIDs and entity IDs, the tick range, and the recorded state. It does not carry chat, commands, or inventory contents. Positions and rotations are personal data, so treat the ingest endpoint and its storage accordingly.
+The envelope carries the server UUID, session epoch, player UUIDs and entity IDs, the tick range, and the recorded state. It does not carry chat, commands, or inventory contents. Item identity is reduced to a category: sword, axe, mace, end crystal, obsidian, respawn anchor, glowstone, totem, wind charge, or other. Positions and rotations are personal data, so treat the ingest endpoint and its storage accordingly.
 
 HMAC signing proves an upload came from a holder of the secret. It does not encrypt the payload. If the path between the Minecraft server and the ingest service is not trusted, put TLS in front.
 
@@ -74,9 +89,9 @@ The collector does not ship any player data to a third party. It sends data to t
 
 ## Status
 
-Schema v1, tested against Paper/Purpur 1.21.11 on Java 21. The collector is usable now. Detector rules, thresholds, and calibration data are not part of this repository.
+Schema v2, tested against Paper/Purpur 1.21.11 on Java 21. The collector is usable now. Detector rules, thresholds, and calibration data are not part of this repository.
 
-The plugin is published as `forensic-telemetry` in `plugin.yml`. Builds from this repo use version `0.1.0`.
+The plugin is published as `forensic-telemetry` in `plugin.yml`. The collector in this tree is version `0.2.0`. The `v0.1.0` release is the schema v1 collector. It still works, but it does not emit the v2 mechanic records.
 
 ## License
 

@@ -1,4 +1,4 @@
-# forensic-telemetry — example plugin configuration
+# forensic-telemetry - example plugin configuration
 #
 # REPORT-ONLY. No key in this file can make the plugin punish, move, damage, or
 # otherwise act on a player. Keys that would imply such behaviour are rejected
@@ -11,15 +11,16 @@ telemetry:
   enabled: false
 
 endpoint:
-  # Direct panel allocation. Stable across panel restarts; no quick tunnel.
-  url: "http://YOUR-PANEL-HOST:PORT/v1/telemetry"
+  # Stable ingest URL. Put a reverse proxy or TLS terminator in front if the
+  # path between this server and the ingest host is not trusted.
+  url: "https://ingest.example.com/v1/telemetry"
 
 server:
-  # Must match a row in the cloud servers table (INGEST_SERVERS), UUID format.
+  # Must match a row in the ingest service's server table, UUID format.
   id: "00000000-0000-0000-0000-000000000000"
   key-id: "k1"
-  # Same value as INGEST_KEY_<server>_<keyId> in the cloud .env.
-  # Lives only in this file and process memory; never logged, never uploaded.
+  # Shared HMAC secret. Lives only in this file and process memory; never
+  # logged, never uploaded.
   key-secret: "CHANGE_ME_AT_LEAST_16_RANDOM_CHARACTERS"
 
 buffer:
@@ -41,13 +42,28 @@ upload:
   timestamp-skew-tolerance-ms: 30000
 
 schema:
-  record-version: 1
-  envelope-version: 1
+  # v2 adds intra-tick ordering and combat-mechanic records. The reader still
+  # decodes v1 segments.
+  record-version: 2
+  envelope-version: 2
+
+capture:
+  # Per-family listener toggles. These stop records from being offered; state,
+  # attacks, damage, deaths and gaps are always captured, so disabling a family
+  # never hides that a session happened.
+  crystal: true
+  anchor: true
+  slot-swap: true
+  interact: true
+  swing: true
+  # Fall distance, attack cooldown, held category, victim category, and wind
+  # charge launches. This is the mace/crit family.
+  attack-context: true
 
 console-report:
   # Read-only shadow measurements printed to the server console. This NEVER
   # kicks, bans, damages, or moves anyone: every line is labelled SHADOW_ONLY.
   enabled: false
   interval-seconds: 30
-  # Must match REPORT_TOKEN on the cloud. Read-only: it cannot export or write.
+  # Must match the read-only report token on the ingest side.
   token: "CHANGE_ME_AT_LEAST_16_RANDOM_CHARACTERS"

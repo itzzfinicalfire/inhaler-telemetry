@@ -58,7 +58,10 @@ class TelemetryPluginArchitectureTest {
             "dropItem", "setTime", "setStorm", "setThundering", "setWeatherDuration",
             "setDifficulty", "setSpawnLocation", "setWhitelist",
             // Commands and event cancellation
-            "dispatchCommand", "performCommand", "cancel", "setCancelled");
+            "dispatchCommand", "performCommand", "cancel", "setCancelled",
+            // v2 event surface: entity/explosion/interaction mutation
+            "setBeamTarget", "setShowingBottom", "setShooter", "setYield",
+            "setUseInteractedBlock", "setUseItemInHand", "setBuild");
 
     /** Method owners that are part of the server API surface. */
     private static final List<String> API_PREFIXES = List.of(

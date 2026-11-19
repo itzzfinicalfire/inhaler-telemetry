@@ -1,7 +1,12 @@
 package dev.forensic.telemetry.fixtures;
 
+import dev.forensic.telemetry.record.ControlFlags;
+import dev.forensic.telemetry.record.ControlKind;
+import dev.forensic.telemetry.record.InteractKind;
+import dev.forensic.telemetry.record.ItemCategory;
 import dev.forensic.telemetry.record.RecordEncoder;
 import dev.forensic.telemetry.record.RecordLayout;
+import dev.forensic.telemetry.record.VictimCategory;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +31,7 @@ public final class FixtureMain {
         Files.createDirectories(out);
         writeScenario(out.resolve("scenario1.hex"), scenario1());
         writeScenario(out.resolve("scenario2.hex"), scenario2());
+        writeScenario(out.resolve("scenario3-v2.hex"), scenario3());
         System.out.println("fixtures written to " + out.toAbsolutePath());
     }
 
@@ -35,7 +41,7 @@ public final class FixtureMain {
         // live in scenario2; each file stays small enough to audit by hand.
         ByteBuffer buf = ByteBuffer.allocateDirect(12 * 32);
         int base = 0;
-        RecordEncoder.encodeSessionStart(buf, base, 100);
+        RecordEncoder.encodeSessionStart(buf, base, 100, 0);
         base += 32;
         for (int t = 100; t <= 104; t++) {
             RecordEncoder.encodeState(buf, base, t, 7,
@@ -48,7 +54,7 @@ public final class FixtureMain {
                     41);
             base += 32;
         }
-        RecordEncoder.encodeAttack(buf, base, 102, 7, 8, 6.0f);
+        RecordEncoder.encodeAttack(buf, base, 102, 0, 7, 8, 6.0f);
         return buf;
     }
 
@@ -57,17 +63,49 @@ public final class FixtureMain {
         // session_end @130, interest @107 (9,10,trigger 1), damage @108 environmental.
         ByteBuffer buf = ByteBuffer.allocateDirect(6 * 32);
         int base = 0;
-        RecordEncoder.encodeGap(buf, base, 105, 90, 95, 0);
+        RecordEncoder.encodeGap(buf, base, 105, 0, 90, 95, 0);
         base += 32;
-        RecordEncoder.encodeDeath(buf, base, 106, 8);
+        RecordEncoder.encodeDeath(buf, base, 106, 0, 8);
         base += 32;
-        RecordEncoder.encodeInterest(buf, base, 107, 9, 10, 1);
+        RecordEncoder.encodeInterest(buf, base, 107, 0, 9, 10, 1);
         base += 32;
-        RecordEncoder.encodeDamage(buf, base, 108, 8, 4.5f, 3, -1);
+        RecordEncoder.encodeDamage(buf, base, 108, 0, 8, 4.5f, 3, -1);
         base += 32;
-        RecordEncoder.encodeResync(buf, base, 120, 12345);
+        RecordEncoder.encodeResync(buf, base, 120, 0, 12345);
         base += 32;
-        RecordEncoder.encodeSessionEnd(buf, base, 130);
+        RecordEncoder.encodeSessionEnd(buf, base, 130, 0);
+        return buf;
+    }
+
+    static ByteBuffer scenario3() {
+        // v2 kinds with nonzero intra-tick sequence, in writer order: a held-slot swap,
+        // a crystal spawn, an attack context, a crystal break, an anchor charge attempt,
+        // an anchor explosion, a totem pop and a wind-charge launch. Byte-auditable.
+        ControlKind[] kinds = {
+            ControlKind.HELD_SLOT, ControlKind.CRYSTAL_SPAWN, ControlKind.ATTACK_CTX,
+            ControlKind.CRYSTAL_BREAK, ControlKind.INTERACT, ControlKind.ANCHOR_EXPLODE,
+            ControlKind.TOTEM_POP, ControlKind.WIND_CHARGE,
+        };
+        ByteBuffer buf = ByteBuffer.allocateDirect(kinds.length * 32);
+        int base = 0;
+        RecordEncoder.encodeHeldSlot(buf, base, 200, 1, 7, 0, 4,
+                ItemCategory.SWORD, ItemCategory.MACE);
+        base += 32;
+        RecordEncoder.encodeCrystalSpawn(buf, base, 200, 2, 42, 10.5f, 64.0f, -3.25f, 7);
+        base += 32;
+        RecordEncoder.encodeAttackCtx(buf, base, 200, 3, 7, 2.5f, 0.875f,
+                ItemCategory.MACE, ControlFlags.ATTACK_VICTIM_PLAYER, VictimCategory.PLAYER);
+        base += 32;
+        RecordEncoder.encodeCrystalBreak(buf, base, 200, 4, 42, 7, 10.5f, 64.0f, -3.25f);
+        base += 32;
+        RecordEncoder.encodeInteract(buf, base, 201, 1, 7, 10, 64, -3,
+                InteractKind.ANCHOR_CHARGE, ItemCategory.GLOWSTONE, 0);
+        base += 32;
+        RecordEncoder.encodeAnchorExplode(buf, base, 202, 1, 10.5f, 64.5f, -2.5f, -1);
+        base += 32;
+        RecordEncoder.encodeTotemPop(buf, base, 203, 1, 8);
+        base += 32;
+        RecordEncoder.encodeWindCharge(buf, base, 204, 1, 7, 91);
         return buf;
     }
 

@@ -100,6 +100,46 @@ class BenchTest {
     }
 
     @Test
+    @DisplayName("v2 control offers allocate zero bytes")
+    void controlOffersAllocateNothing() {
+        TelemetryRing ring = new TelemetryRing(4096 * 32, new GapTracker());
+        Runnable work = () -> {
+            for (int i = 0; i < 20_000; i++) {
+                int tick = i;
+                ring.offerHeldSlot(tick, 7, 0, 4, 2, 4);
+                ring.offerPlace(tick, 7, 1, 64, 2, 6, 0);
+                ring.offerInteract(tick, 7, 1, 64, 2, 0, 8, 0);
+                ring.offerSwing(tick, 7, 0, 0);
+                ring.offerCrystalSpawn(tick, 77, 1, 64, 2, 7);
+                ring.offerCrystalBreak(tick, 77, 7, 1, 64, 2);
+                ring.offerAnchorExplode(tick, 1, 64, 2, -1);
+                ring.offerTotemPop(tick, 7);
+                ring.offerWindCharge(tick, 7, 91);
+                ring.offerAttackCtx(tick, 7, 2.5f, 0.9f, 4, 2, 1);
+            }
+        };
+        work.run(); // warmup
+        long allocated = BenchMain.allocatedBytes(work);
+        assertTrue(allocated < ALLOC_NOISE_CEILING,
+                "control path allocation suspected: " + allocated + " bytes / 200k offers");
+    }
+
+    @Test
+    @DisplayName("a 40-player crystal fight fits well inside the 1% tick budget")
+    void combatTickFitsBudget() {
+        double bestNs = Double.MAX_VALUE;
+        for (int i = 0; i < 5; i++) {
+            bestNs = Math.min(bestNs, BenchMain.benchCombatTick(40, 5_000));
+        }
+        double budgetNs = (double) TICK_NS / TICK_BUDGET_DIVISOR;
+        System.out.printf(
+                "combat tick: %.0f ns/tick at 40 players (%.3f%% of 50 ms); gate %.0f ns%n",
+                bestNs, bestNs / TICK_NS * 100.0, budgetNs);
+        assertTrue(bestNs <= budgetNs,
+                "crystal-density tick exceeds 1% budget: " + bestNs + " ns vs " + budgetNs);
+    }
+
+    @Test
     @DisplayName("observer fits the 1% tick budget at the assumed player count")
     void observerFitsTickBudget() {
         double bestNsPerPlayer = Double.MAX_VALUE;

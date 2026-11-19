@@ -42,7 +42,7 @@ import java.util.UUID;
 public final class ChunkBatcher {
 
     /** Bytes reserved per envelope for JSON framing overhead in field sizing. Not a limit. */
-    public static final int SEGMENT_SCHEMA_VERSION = 1;
+    public static final int SEGMENT_SCHEMA_VERSION = 2;
 
     private ChunkBatcher() {}
 
@@ -62,7 +62,9 @@ public final class ChunkBatcher {
              * session; a reused id after quit resolves to the earlier holder within
              * one chunk, which the cloud treats as this chunk's observation).
              */
-            Map<UUID, Integer> playerEntityIds) {}
+            Map<UUID, Integer> playerEntityIds,
+            /** Control records whose marker this build does not know. Skipped, never thrown. */
+            int unknownControlRecords) {}
 
     public record GapEntry(
             int gapSeq, int fromTick, int toTick, int reason, String cloudReason,
@@ -91,6 +93,21 @@ public final class ChunkBatcher {
             return null;
         }
         int endPos = chunk.position();
+        return scan(chunk, startPos, endPos, drained, serverId, sessionEpoch, entityResolver);
+    }
+
+    /**
+     * Derives envelope metadata from already-drained bytes. Package-private so the scanner can
+     * be tested with synthetic slots (unknown markers, odd gaps) without a ring.
+     */
+    static DrainedChunk scan(
+            ByteBuffer chunk,
+            int startPos,
+            int endPos,
+            int drained,
+            String serverId,
+            UUID sessionEpoch,
+            java.util.function.IntFunction<UUID> entityResolver) {
 
         List<GapEntry> gaps = new ArrayList<>();
         Set<UUID> players = new LinkedHashSet<>();
@@ -98,15 +115,22 @@ public final class ChunkBatcher {
         int tickMin = Integer.MAX_VALUE;
         int tickMax = Integer.MIN_VALUE;
         int gapSeq = 0;
+        int unknownControlRecords = 0;
 
         for (int i = 0; i < drained; i++) {
             int off = startPos + i * RecordLayout.RECORD_BYTES;
             int first = chunk.get(off) & 0xFF;
             if (ControlKind.isControlByte(first)) {
-                ControlKind kind = ControlKind.fromMarker(first);
                 int tick = chunk.getInt(off + RecordLayout.OFF_CTRL_TICK);
                 tickMin = Math.min(tickMin, tick);
                 tickMax = Math.max(tickMax, tick);
+                ControlKind kind = ControlKind.fromMarkerOrNull(first);
+                if (kind == null) {
+                    // Fixed-size slots make an unknown kind skippable: the next record
+                    // starts at the next 32-byte boundary regardless of payload meaning.
+                    unknownControlRecords++;
+                    continue;
+                }
                 if (kind == ControlKind.GAP) {
                     int from = chunk.getInt(off + 8);
                     int to = chunk.getInt(off + 12);
@@ -139,7 +163,8 @@ public final class ChunkBatcher {
         chunk.position(startPos);
         chunk.limit(endPos);
         return new DrainedChunk(
-                chunk, drained, tickMin, tickMax, gaps, segments, players, playerEntityIds);
+                chunk, drained, tickMin, tickMax, gaps, segments, players, playerEntityIds,
+                unknownControlRecords);
     }
 
     static String cloudGapReason(int reason) {

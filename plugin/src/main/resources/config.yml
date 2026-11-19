@@ -49,8 +49,23 @@ upload:
   timestamp-skew-tolerance-ms: 30000
 
 schema:
-  record-version: 1
-  envelope-version: 1
+  # v2 adds intra-tick event ordering and combat-mechanic control records.
+  # The cloud still decodes v1 segments.
+  record-version: 2
+  envelope-version: 2
+
+capture:
+  # Per-family listener toggles. These only stop records from being offered;
+  # state, attacks, damage, deaths and gaps are always captured, so disabling a
+  # family never makes a session look quieter than it was.
+  crystal: true
+  anchor: true
+  slot-swap: true
+  interact: true
+  swing: true
+  # Fall distance, attack cooldown, held-item category, victim category, and
+  # wind-charge launches. This is the mace/crit family.
+  attack-context: true
 
 console-report:
   # Read-only shadow measurements printed to the server console by polling the
